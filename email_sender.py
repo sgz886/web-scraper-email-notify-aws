@@ -1,10 +1,11 @@
 import boto3
 from botocore.exceptions import ClientError
-from config import AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION, SENDER_EMAIL
+from config import AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION
 import logging
 from io import StringIO
 import logging.handlers
 from datetime import datetime
+from utils import emails_string_to_list, get_log_content, get_timestamp
 
 logger = logging.getLogger(__name__)
 
@@ -18,29 +19,7 @@ class EmailSender:
             region_name=AWS_REGION
         )
 
-        # Add log buffer
-        self.log_buffer = StringIO()
-        self.log_handler = logging.StreamHandler(self.log_buffer)
-        self.log_handler.setFormatter(logging.Formatter(
-            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
-        logging.getLogger().addHandler(self.log_handler)
-
-    def check_email_verified(self, email, role):
-        """检查发送者和接收者是否在SES中验证"""
-        try:
-            response = self.ses.get_identity_verification_attributes(Identities=[email])
-            if SENDER_EMAIL not in response['VerificationAttributes'] or \
-               response['VerificationAttributes'][SENDER_EMAIL]['VerificationStatus'] != 'Success':
-                logger.error(f"{datetime.now().strftime(
-                    '%Y-%m-%d %H:%M:%S')} - Sender email {SENDER_EMAIL} is not verified in SES")
-                raise ValueError(
-                    f"Sender email {SENDER_EMAIL} must be verified in SES")
-        except ClientError as e:
-            logger.error(f"{datetime.now().strftime(
-                '%Y-%m-%d %H:%M:%S')} - Failed to check sender email verification: {str(e)}")
-            raise
-
-    def send_new_file_notification(self, sender, recipients, new_files):
+    def send_new_file_email(self, sender, recipients, new_files):
         """发送新文件通知邮件"""
         subject = "检测到新的Xiaomi.eu文件更新"
 
@@ -62,28 +41,49 @@ class EmailSender:
                 </li>
             """
 
-        body_html += """
+        body_html += f"""
             </ul>
+            <p>generated date: {get_timestamp()}</p>
         </body>
         </html>
         """
 
         try:
-            # Verify all recipients are verified in sandbox mode
-            for recipient in recipients if isinstance(recipients, list) else [recipients]:
-                try:
-                    self.ses.get_identity_verification_attributes(
-                        Identities=[recipient.strip()]
-                    )
-                except ClientError:
-                    logger.error(
-                        f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - Recipient {recipient} is not verified in SES. Skipping.")
-                    return False
+            recipients = emails_string_to_list(recipients)
+            if self.check_sender_recipients_emails(sender, recipients):
+                return self.ses_send_email(sender, recipients, subject, body_html, '新文件')
+        except ClientError as e:
+            logger.error(f"{get_timestamp()} - 新文件 邮件发送失败: {str(e)}")
+            return False
 
-            # Convert string to list if needed
-            if isinstance(recipients, str):
-                recipients = [email.strip() for email in recipients.split(',')]
+    def send_log_email(self, sender, recipients):
+        """发送程序运行日志邮件"""
+        subject = "Xiaomi.eu Crawler 运行日志"
 
+        # Get logs from global buffer
+        log_content = get_log_content()
+
+        body_html = f"""
+        <html>
+        <head></head>
+        <body>
+            <h2>程序运行日志</h2>
+            <pre style="background-color: #f5f5f5; padding: 15px; border-radius: 5px;">{log_content}</pre>
+            <p>generated date: {get_timestamp()}</p>
+        </body>
+        </html>
+        """
+
+        try:
+            recipients = emails_string_to_list(recipients)
+            if self.check_sender_recipients_emails(sender, recipients):
+                return self.ses_send_email(sender, recipients, subject, body_html, '日志')
+        except ClientError as e:
+            logger.error(f"{get_timestamp()} - 日志 邮件发送失败: {str(e)}")
+            return False
+
+    def ses_send_email(self, sender, recipients, subject, body_html, type):
+        try:
             response = self.ses.send_email(
                 Source=sender,
                 Destination={
@@ -100,57 +100,29 @@ class EmailSender:
                     }
                 }
             )
-            logger.info(f"{datetime.now().strftime(
-                '%Y-%m-%d %H:%M:%S')} - 新文件邮件发送成功: {response['MessageId']}")
+            logger.info(f"{get_timestamp()} - {type} 邮件发送成功: {response['MessageId']}")
             return True
         except ClientError as e:
-            error_code = e.response['Error']['Code']
-            error_msg = e.response['Error']['Message']
-            logger.error(
-                f"Email sending failed - Error {error_code}: {error_msg}")
-            if error_code == 'MessageRejected':
-                logger.error(
-                    "{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} Email rejected - Check if sender/recipient are verified in sandbox mode")
+            logger.error(f"{get_timestamp()} - {type} 邮件发送失败: {str(e)}")
             return False
 
-    def send_log_email(self, sender, recipient):
-        """发送程序运行日志邮件"""
-        subject = "Xiaomi.eu Crawler 运行日志"
-
-        # Get logs from buffer
-        log_content = self.log_buffer.getvalue()
-
-        body_html = f"""
-        <html>
-        <head></head>
-        <body>
-            <h2>程序运行日志</h2>
-            <pre style="background-color: #f5f5f5; padding: 15px; border-radius: 5px;">{log_content}</pre>
-        </body>
-        </html>
-        """
-
+    def check_sender_recipients_emails(self, sender, recipients):
+        if not self.check_email_verified(sender, 'sender'):
+                return False
+        for recipient in recipients:
+            if not self.check_email_verified(recipient, 'recipient'):
+                return False
+        return True
+    
+    def check_email_verified(self, email, role):
+        """检查发送者和接收者是否在SES中验证"""
         try:
-            response = self.ses.send_email(
-                Source=sender,
-                Destination={
-                    'ToAddresses': [recipient]
-                },
-                Message={
-                    'Subject': {
-                        'Data': subject
-                    },
-                    'Body': {
-                        'Html': {
-                            'Data': body_html
-                        }
-                    }
-                }
-            )
-            logger.info(f"{datetime.now().strftime(
-                '%Y-%m-%d %H:%M:%S')} - 日志邮件发送成功: {response['MessageId']}")
+            response = self.ses.get_identity_verification_attributes(Identities=[email])
+            if email not in response['VerificationAttributes'] or \
+               response['VerificationAttributes'][email]['VerificationStatus'] != 'Success':
+                logger.error(f"{get_timestamp()} - {role} email {email} is not verified in SES")
+                return False
             return True
         except ClientError as e:
-            logger.error(f"{datetime.now().strftime(
-                '%Y-%m-%d %H:%M:%S')} -  日志邮件发送失败: {str(e)}")
+            logger.error(f"{get_timestamp()} - Failed to check {role} email verification: {str(e)}")
             return False

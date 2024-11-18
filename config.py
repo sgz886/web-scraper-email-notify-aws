@@ -2,6 +2,7 @@ from dotenv import load_dotenv
 import os
 import boto3
 import logging
+from utils import get_timestamp
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +18,7 @@ def get_secret(secret_name):
         response = client.get_secret_value(SecretId=secret_name)
         return response['SecretString']
     except Exception as e:
-        logger.warning(f"Could not get secret from AWS: {str(e)}")
+        logger.warning(f"{get_timestamp()} - Could not get secret from AWS: {str(e)}")
         return None
 
 
@@ -37,13 +38,13 @@ if secret:
     AWS_SECRET_KEY = secrets_dict.get('AWS_SECRET_KEY')
     SENDER_EMAIL = secrets_dict.get('SENDER_EMAIL')
     NEW_FILE_RECIPIENT_EMAILS = secrets_dict.get('NEW_FILE_RECIPIENT_EMAILS')
-    LOG_RECIPIENT_EMAIL = secrets_dict.get('LOG_RECIPIENT_EMAIL')
+    LOG_RECIPIENT_EMAILS = secrets_dict.get('LOG_RECIPIENT_EMAILS')
 else:
     # Fall back to environment variables
     AWS_ACCESS_KEY = os.getenv('AWS_ACCESS_KEY')
     AWS_SECRET_KEY = os.getenv('AWS_SECRET_KEY')
     SENDER_EMAIL = os.getenv('SENDER_EMAIL')
     NEW_FILE_RECIPIENT_EMAILS = os.getenv('NEW_FILE_RECIPIENT_EMAILS')
-    LOG_RECIPIENT_EMAIL = os.getenv('LOG_RECIPIENT_EMAIL')
+    LOG_RECIPIENT_EMAILS = os.getenv('LOG_RECIPIENT_EMAILS')
 AWS_REGION = os.getenv('AWS_REGION')
 TABLE_NAME = 'xiaomi_eu_files'

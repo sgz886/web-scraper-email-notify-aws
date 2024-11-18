@@ -1,9 +1,9 @@
 import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
+from utils import get_timestamp
 import logging
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class XiaomiEUScraper:
@@ -24,7 +24,7 @@ class XiaomiEUScraper:
             tbody = files_table.find_next('tbody')
             
             if not files_table:
-                logger.error("找不到文件列表表格")
+                logger.error(f"{get_timestamp()} - 找不到文件列表表格")
                 return []
             
             files = []
@@ -49,7 +49,7 @@ class XiaomiEUScraper:
                         else:
                             raise ValueError("Invalid date format")
                     except (ValueError, IndexError):
-                        logger.warning(f"Could not extract valid date from filename: {filename}")
+                        logger.warning(f"{get_timestamp()} - Could not extract valid date from filename: {filename}")
                         date = datetime.now().strftime('%Y.%m.%d')
                     
                     files.append({
@@ -61,5 +61,5 @@ class XiaomiEUScraper:
             return files
             
         except Exception as e:
-            logger.error(f"抓取文件列表时出错: {str(e)}")
+            logger.error(f"{get_timestamp()} - 抓取文件列表时出错: {str(e)}")
             return [] 
