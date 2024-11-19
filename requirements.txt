@@ -1,5 +1,7 @@
+# Core dependencies
 beautifulsoup4==4.12.3
-boto3==1.34.34
 requests==2.31.0
 python-dotenv==1.0.1
-schedule==1.2.1 
+
+# AWS SDK - not needed for Lambda as it's included
+# boto3==1.34.34
