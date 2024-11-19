@@ -1,7 +1,6 @@
 import boto3
 from datetime import datetime
 import json
-from config import AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION, TABLE_NAME
 import logging
 from utils import get_timestamp
 
@@ -9,26 +8,27 @@ logger = logging.getLogger(__name__)
 
 
 class DynamoDBHandler:
-    def __init__(self):
+    def __init__(self, aws_credentials, table_name):
         self.dynamodb = boto3.resource(
             'dynamodb',
-            aws_access_key_id=AWS_ACCESS_KEY,
-            aws_secret_access_key=AWS_SECRET_KEY,
-            region_name=AWS_REGION
+            aws_access_key_id=aws_credentials['aws_access_key_id'],
+            aws_secret_access_key=aws_credentials['aws_secret_access_key'],
+            region_name=aws_credentials['region_name']
         )
-        self.table = self.dynamodb.Table(TABLE_NAME)
+        self.create_table_if_not_exists(table_name)
+        self.table = self.dynamodb.Table(table_name)
 
-    def create_table_if_not_exists(self):
+    def create_table_if_not_exists(self, table_name):
         """Create DynamoDB table if it doesn't exist"""
         try:
             # Check if table exists first
-            self.dynamodb.meta.client.describe_table(TableName=TABLE_NAME)
-            logger.info(f"{get_timestamp()} - Table {TABLE_NAME} already exists")
+            self.dynamodb.meta.client.describe_table(TableName=table_name)
+            logger.info(f"{get_timestamp()} - Table {table_name} exists")
             return
         except self.dynamodb.meta.client.exceptions.ResourceNotFoundException:
             # Table doesn't exist, create it
             self.dynamodb.create_table(
-                TableName=TABLE_NAME,
+                TableName=table_name,
                 KeySchema=[
                     {'AttributeName': 'record_type', 'KeyType': 'HASH'},
                     {'AttributeName': 'scan_date', 'KeyType': 'RANGE'}
@@ -42,7 +42,7 @@ class DynamoDBHandler:
                     'WriteCapacityUnits': 5
                 }
             )
-            logger.info(f"{get_timestamp()} - Table {TABLE_NAME} created successfully")
+            logger.info(f"{get_timestamp()} - Table {table_name} created successfully")
 
     def save_scraper_result(self, files):
         """Save scan result to DynamoDB"""

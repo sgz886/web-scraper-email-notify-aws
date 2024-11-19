@@ -62,4 +62,5 @@ class XiaomiEUScraper:
             
         except Exception as e:
             logger.error(f"{get_timestamp()} - 抓取文件列表时出错: {str(e)}")
-            return [] 
+            logger.error(f"{get_timestamp()} - 检查 URL {self.url}")
+            return []

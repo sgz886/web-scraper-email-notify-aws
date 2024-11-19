@@ -1,6 +1,5 @@
 import boto3
 from botocore.exceptions import ClientError
-from config import AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION
 import logging
 from io import StringIO
 import logging.handlers
@@ -11,15 +10,22 @@ logger = logging.getLogger(__name__)
 
 
 class EmailSender:
-    def __init__(self):
+    def __init__(self, aws_credentials, sender_recipient_addresses):
         self.ses = boto3.client(
             'ses',
-            aws_access_key_id=AWS_ACCESS_KEY,
-            aws_secret_access_key=AWS_SECRET_KEY,
-            region_name=AWS_REGION
+            aws_access_key_id=aws_credentials['aws_access_key_id'],
+            aws_secret_access_key=aws_credentials['aws_secret_access_key'],
+            region_name=aws_credentials['region_name']
         )
+        self.sender_email = sender_recipient_addresses['sender_email']
+        self.new_file_recipient_emails = emails_string_to_list(sender_recipient_addresses['new_file_recipient_emails'])
+        self.log_recipient_emails = emails_string_to_list(sender_recipient_addresses['log_recipient_emails'])
 
-    def send_new_file_email(self, sender, recipients, new_files):
+        self.is_sender_email_verified = self._check_email_verified(self.sender_email, 'sender')
+        self.is_new_file_recipient_emails_verified = self._check_emails_verified(self.new_file_recipient_emails, 'new file recipient')
+        self.is_log_recipient_emails_verified = self._check_emails_verified(self.log_recipient_emails, 'log recipient')
+
+    def send_new_file_email(self, new_files):
         """发送新文件通知邮件"""
         subject = "检测到新的Xiaomi.eu文件更新"
 
@@ -49,14 +55,17 @@ class EmailSender:
         """
 
         try:
-            recipients = emails_string_to_list(recipients)
-            if self.check_sender_recipients_emails(sender, recipients):
-                return self.ses_send_email(sender, recipients, subject, body_html, '新文件')
+            type = 'new files'
+            if self.is_sender_email_verified and self.is_new_file_recipient_emails_verified:
+                return self._ses_send_email(self.new_file_recipient_emails, subject, body_html, type)
+            else:
+                logger.error(f"{get_timestamp()} - {type} 邮件发送失败: 发送者或接收者 verify failed")
+                return False
         except ClientError as e:
-            logger.error(f"{get_timestamp()} - 新文件 邮件发送失败: {str(e)}")
+            logger.error(f"{get_timestamp()} - {type} 邮件发送失败: {str(e)}")
             return False
 
-    def send_log_email(self, sender, recipients):
+    def send_log_email(self):
         """发送程序运行日志邮件"""
         subject = "Xiaomi.eu Crawler 运行日志"
 
@@ -75,17 +84,20 @@ class EmailSender:
         """
 
         try:
-            recipients = emails_string_to_list(recipients)
-            if self.check_sender_recipients_emails(sender, recipients):
-                return self.ses_send_email(sender, recipients, subject, body_html, '日志')
+            type = 'logs'
+            if self.is_sender_email_verified and self.is_log_recipient_emails_verified:
+                return self._ses_send_email(self.log_recipient_emails, subject, body_html, type)
+            else:
+                logger.error(f"{get_timestamp()} - {type} 邮件发送失败: 发送者或接收者 verify failed")
+                return False
         except ClientError as e:
-            logger.error(f"{get_timestamp()} - 日志 邮件发送失败: {str(e)}")
+            logger.error(f"{get_timestamp()} - {type} 邮件发送失败: {str(e)}")
             return False
 
-    def ses_send_email(self, sender, recipients, subject, body_html, type):
+    def _ses_send_email(self, recipients, subject, body_html, type):
         try:
             response = self.ses.send_email(
-                Source=sender,
+                Source=self.sender_email,
                 Destination={
                     'ToAddresses': recipients  # Now accepts a list of emails
                 },
@@ -106,15 +118,13 @@ class EmailSender:
             logger.error(f"{get_timestamp()} - {type} 邮件发送失败: {str(e)}")
             return False
 
-    def check_sender_recipients_emails(self, sender, recipients):
-        if not self.check_email_verified(sender, 'sender'):
-                return False
-        for recipient in recipients:
-            if not self.check_email_verified(recipient, 'recipient'):
+    def _check_emails_verified(self, emails, role):
+        for email in emails:
+            if not self._check_email_verified(email, role):
                 return False
         return True
-    
-    def check_email_verified(self, email, role):
+
+    def _check_email_verified(self, email, role):
         """检查发送者和接收者是否在SES中验证"""
         try:
             response = self.ses.get_identity_verification_attributes(Identities=[email])
@@ -124,5 +134,5 @@ class EmailSender:
                 return False
             return True
         except ClientError as e:
-            logger.error(f"{get_timestamp()} - Failed to check {role} email verification: {str(e)}")
+            logger.error(f"{get_timestamp()} - Failed to verify {role} email {email}: {str(e)}")
             return False
