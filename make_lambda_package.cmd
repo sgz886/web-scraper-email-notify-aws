@@ -16,6 +16,7 @@ copy ..\utils.py .
 copy ..\.env.example .
 
 REM Create zip file using Windows tar
-tar -acf lambda_function.zip *
+tar -acf lambda_function.zip * --exclude "*.zip"
 
 cd ..
+pause

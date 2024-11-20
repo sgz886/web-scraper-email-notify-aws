@@ -14,11 +14,13 @@ class UpdateService:
 
     def check_new_files_and_send_email(self):
         try:
+            last_files_in_db = self.db_handler.get_last_scraper_result()
+            
             current_files = self.scraper.get_file_list()
             if not current_files:
                 raise ScraperError(f"{get_timestamp()} - get 0 files from URL, check URL {self.scraper.url}")
+            self.db_handler.save_scraper_result(current_files)
             
-            last_files_in_db = self.db_handler.get_last_scraper_result()
             new_files = self._compare_files_to_get_new(current_files, last_files_in_db)
             if new_files:
                 logger.info(f"{get_timestamp()} - 发现 {len(new_files)} 个新文件, prepare to send email")

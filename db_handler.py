@@ -45,7 +45,7 @@ class DynamoDBHandler:
             logger.info(f"{get_timestamp()} - Table {table_name} created successfully")
 
     def save_scraper_result(self, files):
-        """Save scan result to DynamoDB"""
+        """Save latest files result to DynamoDB"""
         try:
             scan_date = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
             self.table.put_item(
@@ -55,9 +55,13 @@ class DynamoDBHandler:
                     'files': json.dumps(files)
                 }
             )
+            logger.info(f"{get_timestamp()} - save latest records to db table {self.table.name} successfully")
+            logger.info(f"{get_timestamp()} - file content: {files}")
             return True
         except Exception as e:
-            logger.error(f"{get_timestamp()} - Error saving scan result: {str(e)}")
+            logger.error(f"{get_timestamp()} - Error saving new files to DB")
+            logger.error(f"{get_timestamp()} - file content: {files}")
+            logger.error(f"{get_timestamp()} - Error message: {str(e)}")
             return False
 
     def get_last_scraper_result(self):
