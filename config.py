@@ -1,12 +1,12 @@
 from dotenv import load_dotenv
 import os
 import boto3
-import json
 import logging
 from utils import get_timestamp
 
 IS_LOCAL = os.getenv('AWS_LAMBDA_FUNCTION_NAME') is None  # True if running locally
 logger = logging.getLogger(__name__)
+
 
 class Config:
     def __init__(self):
@@ -15,22 +15,14 @@ class Config:
         self._load_config()
 
     def _load_config(self):
-        self.AWS_ACCESS_KEY = os.getenv('AWS_ACCESS_KEY')
-        self.AWS_SECRET_KEY = os.getenv('AWS_SECRET_KEY')
+        self.AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
+        self.AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
         self.AWS_REGION = os.getenv('AWS_REGION', 'ap-southeast-2')
         self.SENDER_EMAIL = os.getenv('SENDER_EMAIL')
         self.NEW_FILE_RECIPIENT_EMAILS = os.getenv('NEW_FILE_RECIPIENT_EMAILS')
         self.LOG_RECIPIENT_EMAILS = os.getenv('LOG_RECIPIENT_EMAILS')
         self.TABLE_NAME = os.getenv('TABLE_NAME', 'xiaomi_eu_files')
         self.URL = os.getenv('URL', "https://sourceforge.net/projects/xiaomi-eu-multilang-miui-roms/files/xiaomi.eu/Xiaomi.eu-app/")
-
-    @property
-    def aws_credentials(self):
-        return {
-            'aws_access_key_id': self.AWS_ACCESS_KEY,
-            'aws_secret_access_key': self.AWS_SECRET_KEY,
-            'region_name': self.AWS_REGION,
-        }
 
     @property
     def sender_recipient_addresses(self):

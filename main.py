@@ -2,7 +2,7 @@ from scraper import XiaomiEUScraper
 from db_handler import DynamoDBHandler
 from email_sender import EmailSender
 from config import Config
-from utils import get_timestamp, setup_logging
+from utils import setup_logging
 from services import UpdateService
 
 
@@ -15,8 +15,8 @@ def main():
 def create_app():
     config = Config()
     scraper = XiaomiEUScraper(config.URL)
-    db_handler = DynamoDBHandler(config.aws_credentials, config.TABLE_NAME)
-    email_sender = EmailSender(config.aws_credentials, config.sender_recipient_addresses)
+    db_handler = DynamoDBHandler(config.TABLE_NAME)
+    email_sender = EmailSender(config.sender_recipient_addresses)
 
     return UpdateService(scraper, db_handler, email_sender)
 

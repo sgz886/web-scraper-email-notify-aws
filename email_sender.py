@@ -10,13 +10,10 @@ logger = logging.getLogger(__name__)
 
 
 class EmailSender:
-    def __init__(self, aws_credentials, sender_recipient_addresses):
-        self.ses = boto3.client(
-            'ses',
-            aws_access_key_id=aws_credentials['aws_access_key_id'],
-            aws_secret_access_key=aws_credentials['aws_secret_access_key'],
-            region_name=aws_credentials['region_name']
-        )
+    def __init__(self, sender_recipient_addresses):
+        # because of credential chain, there is no need to pass aws_credentials
+        # read env then ~/.aws then Lambda environment
+        self.ses = boto3.client('ses')
         self.sender_email = sender_recipient_addresses['sender_email']
         self.new_file_recipient_emails = emails_string_to_list(sender_recipient_addresses['new_file_recipient_emails'])
         self.log_recipient_emails = emails_string_to_list(sender_recipient_addresses['log_recipient_emails'])

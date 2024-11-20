@@ -8,13 +8,10 @@ logger = logging.getLogger(__name__)
 
 
 class DynamoDBHandler:
-    def __init__(self, aws_credentials, table_name):
-        self.dynamodb = boto3.resource(
-            'dynamodb',
-            aws_access_key_id=aws_credentials['aws_access_key_id'],
-            aws_secret_access_key=aws_credentials['aws_secret_access_key'],
-            region_name=aws_credentials['region_name']
-        )
+    def __init__(self, table_name):
+        # because of credential chain, there is no need to pass aws_credentials
+        # read env then ~/.aws then Lambda environment
+        self.dynamodb = boto3.resource('dynamodb')
         self.create_table_if_not_exists(table_name)
         self.table = self.dynamodb.Table(table_name)
 
