@@ -1,7 +1,7 @@
 import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
-from utils import get_timestamp
+from util import get_timestamp
 import logging
 
 logger = logging.getLogger(__name__)
@@ -12,8 +12,8 @@ class XiaomiEUScraper:
     
     def get_file_list(self):
         """
-        访问网页并解析出文件列表
-        返回格式: [{'filename': 'xxx.apk', 'url': 'xxx', 'date': 'yyyy-mm-dd'}]
+        browser to get file list
+        return format: [{'filename': 'xxx.apk', 'url': 'xxx', 'date': 'yyyy-mm-dd'}]
         """
         try:
             response = requests.get(self.url)
@@ -21,12 +21,11 @@ class XiaomiEUScraper:
             
             soup = BeautifulSoup(response.text, 'html.parser')
             files_table = soup.find('table', id='files_list')
-            tbody = files_table.find_next('tbody')
-            
             if not files_table:
-                logger.error(f"{get_timestamp()} - 找不到文件列表表格")
+                logger.error(f"{get_timestamp()} - could not find files table, please check URL {self.url}")
                 return []
             
+            tbody = files_table.find_next('tbody')
             files = []
             for row in tbody.find_all('tr'):
                 content_of_interest = row.find_all('th')
@@ -61,6 +60,6 @@ class XiaomiEUScraper:
             return files
             
         except Exception as e:
-            logger.error(f"{get_timestamp()} - 抓取文件列表时出错: {str(e)}")
-            logger.error(f"{get_timestamp()} - 检查 URL {self.url}")
+            logger.error(f"{get_timestamp()} - error when getting file list: {str(e)}")
+            logger.error(f"{get_timestamp()} - please check URL {self.url}")
             return []

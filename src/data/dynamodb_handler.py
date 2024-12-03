@@ -1,30 +1,29 @@
-import boto3
 from datetime import datetime
 import json
 import logging
-from utils import get_timestamp
+from util import get_timestamp
 
 logger = logging.getLogger(__name__)
 
 
 class DynamoDBHandler:
-    def __init__(self, table_name):
+    def __init__(self, dynamodb, table_name):
         # because of credential chain, there is no need to pass aws_credentials
         # read env then ~/.aws then Lambda environment
-        self.dynamodb = boto3.resource('dynamodb')
-        self.create_table_if_not_exists(table_name)
+        self.dynamodb = dynamodb
+        self._create_table_if_not_exists(dynamodb, table_name)
         self.table = self.dynamodb.Table(table_name)
 
-    def create_table_if_not_exists(self, table_name):
+    def _create_table_if_not_exists(self, dynamodb, table_name):
         """Create DynamoDB table if it doesn't exist"""
         try:
             # Check if table exists first
-            self.dynamodb.meta.client.describe_table(TableName=table_name)
+            dynamodb.meta.client.describe_table(TableName=table_name)
             logger.info(f"{get_timestamp()} - Table {table_name} exists")
             return
-        except self.dynamodb.meta.client.exceptions.ResourceNotFoundException:
+        except dynamodb.meta.client.exceptions.ResourceNotFoundException:
             # Table doesn't exist, create it
-            self.dynamodb.create_table(
+            dynamodb.create_table(
                 TableName=table_name,
                 KeySchema=[
                     {'AttributeName': 'record_type', 'KeyType': 'HASH'},

@@ -2,7 +2,7 @@ from dotenv import load_dotenv
 import os
 import boto3
 import logging
-from utils import get_timestamp
+from .helper import get_timestamp
 
 IS_LOCAL = os.getenv('AWS_LAMBDA_FUNCTION_NAME') is None  # True if running locally
 logger = logging.getLogger(__name__)
@@ -21,8 +21,8 @@ class Config:
         self.SENDER_EMAIL = os.getenv('SENDER_EMAIL')
         self.NEW_FILE_RECIPIENT_EMAILS = os.getenv('NEW_FILE_RECIPIENT_EMAILS')
         self.LOG_RECIPIENT_EMAILS = os.getenv('LOG_RECIPIENT_EMAILS')
-        self.TABLE_NAME = os.getenv('TABLE_NAME', 'xiaomi_eu_files')
-        self.URL = os.getenv('URL', "https://sourceforge.net/projects/xiaomi-eu-multilang-miui-roms/files/xiaomi.eu/Xiaomi.eu-app/")
+        self.TABLE_NAME = os.getenv('TABLE_NAME')
+        self.URL = os.getenv('URL')
 
     @property
     def sender_recipient_addresses(self):

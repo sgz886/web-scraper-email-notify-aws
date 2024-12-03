@@ -1,5 +1,6 @@
 # Ignore lambda deployment
 deployment/
+*.zip
 
 # Ignore environment files
 *.env

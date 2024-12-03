@@ -1,6 +1,6 @@
 import logging
 
-from utils import ScraperError, get_timestamp
+from util import ScraperError, get_timestamp
 
 
 logger = logging.getLogger(__name__)
@@ -16,17 +16,17 @@ class UpdateService:
         try:
             last_files_in_db = self.db_handler.get_last_scraper_result()
             
-            current_files = self.scraper.get_file_list()
-            if not current_files:
+            files_from_crawler = self.scraper.get_file_list()
+            if not files_from_crawler:
                 raise ScraperError(f"{get_timestamp()} - get 0 files from URL, check URL {self.scraper.url}")
-            self.db_handler.save_scraper_result(current_files)
+            self.db_handler.save_scraper_result(files_from_crawler)
             
-            new_files = self._compare_files_to_get_new(current_files, last_files_in_db)
+            new_files = self._compare_files_to_get_new(files_from_crawler, last_files_in_db)
             if new_files:
-                logger.info(f"{get_timestamp()} - 发现 {len(new_files)} 个新文件, prepare to send email")
+                logger.info(f"{get_timestamp()} - found {len(new_files)} new files, prepare to send email")
                 self._send_notification_email(new_files)
             else:
-                logger.info(f"{get_timestamp()} - 没有新文件, 不发送邮件")
+                logger.info(f"{get_timestamp()} - no new files, do not send email")
         except Exception as e:
             logger.error(f"{get_timestamp()} - Service error: {str(e)}")
 

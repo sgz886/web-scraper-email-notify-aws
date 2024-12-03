@@ -1,19 +1,16 @@
-import boto3
 from botocore.exceptions import ClientError
 import logging
-from io import StringIO
 import logging.handlers
-from datetime import datetime
-from utils import emails_string_to_list, get_log_content, get_timestamp
+from util import emails_string_to_list, get_timestamp, get_log_content
 
 logger = logging.getLogger(__name__)
 
 
 class EmailSender:
-    def __init__(self, sender_recipient_addresses):
+    def __init__(self, ses, sender_recipient_addresses):
         # because of credential chain, there is no need to pass aws_credentials
         # read env then ~/.aws then Lambda environment
-        self.ses = boto3.client('ses')
+        self.ses = ses
         self.sender_email = sender_recipient_addresses['sender_email']
         self.new_file_recipient_emails = emails_string_to_list(sender_recipient_addresses['new_file_recipient_emails'])
         self.log_recipient_emails = emails_string_to_list(sender_recipient_addresses['log_recipient_emails'])
@@ -23,24 +20,24 @@ class EmailSender:
         self.is_log_recipient_emails_verified = self._check_emails_verified(self.log_recipient_emails, 'log recipient')
 
     def send_new_file_email(self, new_files):
-        """发送新文件通知邮件"""
-        subject = "检测到新的Xiaomi.eu文件更新"
+        """send new file notification email"""
+        subject = "new files detected"
 
-        # 构建邮件内容
+        # build email content
         body_html = """
         <html>
         <head></head>
         <body>
-            <h2>检测到以下新文件：</h2>
+            <h2>new files detected</h2>
             <ul>
         """
 
         for file in new_files:
             body_html += f"""
                 <li>
-                    <p>文件名：{file['filename']}</p>
-                    <p>下载链接：<a href="{file['url']}">{file['url']}</a></p>
-                    <p>更新日期：{file['date']}</p>
+                    <p>filename: {file['filename']}</p>
+                    <p>download link: <a href="{file['url']}">{file['url']}</a></p>
+                    <p>update date: {file['date']}</p>
                 </li>
             """
 
@@ -54,17 +51,20 @@ class EmailSender:
         try:
             type = 'new files'
             if self.is_sender_email_verified and self.is_new_file_recipient_emails_verified:
-                return self._ses_send_email(self.new_file_recipient_emails, subject, body_html, type)
+                value = self._ses_send_email(self.new_file_recipient_emails, subject, body_html, type)
+                import time
+                time.sleep(2)
+                return value
             else:
-                logger.error(f"{get_timestamp()} - {type} 邮件发送失败: 发送者或接收者 verify failed")
+                logger.error(f"{get_timestamp()} - {type} email send failed: sender or recipient verify failed")
                 return False
         except ClientError as e:
-            logger.error(f"{get_timestamp()} - {type} 邮件发送失败: {str(e)}")
+            logger.error(f"{get_timestamp()} - {type} email send failed: {str(e)}")
             return False
 
     def send_log_email(self):
-        """发送程序运行日志邮件"""
-        subject = "Xiaomi.eu Crawler 运行日志"
+        """send program run log email"""
+        subject = "Crawler from AWS Lambda run log"
 
         # Get logs from global buffer
         log_content = get_log_content()
@@ -73,7 +73,7 @@ class EmailSender:
         <html>
         <head></head>
         <body>
-            <h2>程序运行日志</h2>
+            <h2>Crawler from AWS Lambda run log</h2>
             <pre style="background-color: #f5f5f5; padding: 15px; border-radius: 5px;">{log_content}</pre>
             <p>generated date: {get_timestamp()}</p>
         </body>
@@ -85,10 +85,10 @@ class EmailSender:
             if self.is_sender_email_verified and self.is_log_recipient_emails_verified:
                 return self._ses_send_email(self.log_recipient_emails, subject, body_html, type)
             else:
-                logger.error(f"{get_timestamp()} - {type} 邮件发送失败: 发送者或接收者 verify failed")
+                logger.error(f"{get_timestamp()} - {type} email send failed: sender or recipient verify failed")
                 return False
         except ClientError as e:
-            logger.error(f"{get_timestamp()} - {type} 邮件发送失败: {str(e)}")
+            logger.error(f"{get_timestamp()} - {type} email send failed: {str(e)}")
             return False
 
     def _ses_send_email(self, recipients, subject, body_html, type):
@@ -109,10 +109,10 @@ class EmailSender:
                     }
                 }
             )
-            logger.info(f"{get_timestamp()} - {type} 邮件发送成功: {response['MessageId']}")
+            logger.info(f"{get_timestamp()} - {type} email send success: {response['MessageId']}")
             return True
         except ClientError as e:
-            logger.error(f"{get_timestamp()} - {type} 邮件发送失败: {str(e)}")
+            logger.error(f"{get_timestamp()} - {type} email send failed: {str(e)}")
             return False
 
     def _check_emails_verified(self, emails, role):
@@ -122,7 +122,7 @@ class EmailSender:
         return True
 
     def _check_email_verified(self, email, role):
-        """检查发送者和接收者是否在SES中验证"""
+        """check if sender or recipient is verified in SES"""
         try:
             response = self.ses.get_identity_verification_attributes(Identities=[email])
             if email not in response['VerificationAttributes'] or \
