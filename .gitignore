@@ -5,6 +5,8 @@ deployment/
 # Ignore environment files
 *.env
 
+# Ignore IDE files
+.idea
 
 # Python
 __pycache__/
