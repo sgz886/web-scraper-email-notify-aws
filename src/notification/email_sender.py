@@ -1,5 +1,5 @@
 from botocore.exceptions import ClientError
-import logging
+from datetime import datetime
 import logging.handlers
 from util import emails_string_to_list, get_timestamp, get_log_content
 
@@ -16,7 +16,8 @@ class EmailSender:
         self.log_recipient_emails = emails_string_to_list(sender_recipient_addresses['log_recipient_emails'])
 
         self.is_sender_email_verified = self._check_email_verified(self.sender_email, 'sender')
-        self.is_new_file_recipient_emails_verified = self._check_emails_verified(self.new_file_recipient_emails, 'new file recipient')
+        self.is_new_file_recipient_emails_verified = self._check_emails_verified(self.new_file_recipient_emails,
+                                                                                 'new file recipient')
         self.is_log_recipient_emails_verified = self._check_emails_verified(self.log_recipient_emails, 'log recipient')
 
     def send_new_file_email(self, new_files):
@@ -64,11 +65,18 @@ class EmailSender:
 
     def send_log_email(self):
         """send program run log email"""
-        subject = "Crawler from AWS Lambda run log"
+
+        # Check if today is Saturday (where weekday() returns 5 for Saturday), only send email on Saturdays
+        if datetime.now().weekday() != 5:
+            logger.info(f"{get_timestamp()} - Not Saturday, skipping log email")
+            return True;
 
         # Get logs from global buffer
         log_content = get_log_content()
+        last_line = log_content.strip().split('\n')[-1]
+        new_file_message = last_line.split('-')[-1].strip()
 
+        subject = "Crawler run log (AWS Lambda) - " + new_file_message
         body_html = f"""
         <html>
         <head></head>
@@ -126,7 +134,7 @@ class EmailSender:
         try:
             response = self.ses.get_identity_verification_attributes(Identities=[email])
             if email not in response['VerificationAttributes'] or \
-               response['VerificationAttributes'][email]['VerificationStatus'] != 'Success':
+                    response['VerificationAttributes'][email]['VerificationStatus'] != 'Success':
                 logger.error(f"{get_timestamp()} - {role} email {email} is not verified in SES")
                 return False
             return True

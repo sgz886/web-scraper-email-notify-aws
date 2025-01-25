@@ -20,6 +20,8 @@ def lambda_handler(event, context):
     service = create_app()
     service.check_new_files_and_send_email()
     service.send_log_email()
+    service.deleteOldDbData()
+
     return {
         'statusCode': 200,
         'body': 'Successfully executed'

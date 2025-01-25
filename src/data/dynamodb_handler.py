@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 import logging
 from util import get_timestamp
@@ -78,3 +78,35 @@ class DynamoDBHandler:
         except Exception as e:
             logger.error(f"{get_timestamp()} - Error getting last scan result: {str(e)}")
             return []
+
+    def deleteOldDbData(self):
+        """At first day of a month, remove records older than 30 days using batch delete"""
+        if datetime.now().day != 1:
+            return
+        thirty_days_ago = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
+
+        response = self.table.query(KeyConditionExpression='record_type = :rt AND scan_date < :sd',
+                                    ExpressionAttributeValues={':rt': 'SCAN_RESULT', ':sd': thirty_days_ago})
+
+        items = response.get('Items', [])
+        # limit batch operations to 25 items
+        batch_size = 25
+        for i in range(0, len(items), batch_size):
+            batch_items = items[i:i + batch_size]
+            request_items = {
+                self.table.name: [
+                    {
+                        'DeleteRequest': {
+                            'Key': {
+                                'record_type': item['record_type'],
+                                'scan_date': item['scan_date']
+                            }
+                        }
+                    }
+                    for item in batch_items
+                ]
+            }
+            # Execute batch delete
+            self.dynamodb.meta.client.batch_write_item(RequestItems=request_items)
+
+        logger.info(f"{get_timestamp()} - Deleted {len(items)} old records")
